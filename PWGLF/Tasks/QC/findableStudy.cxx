@@ -180,16 +180,16 @@ struct findableStudy {
     uint32_t withITSTrackerTPC = 0; // if prongs have TPC and are ITS tracked
     uint32_t withITSABTPC = 0;      // if prongs have TPC and are ITS afterburned
     uint32_t withSVertexerOK = 0;   // if prongs have acceptable tracking conditions for svertexer
-    uint32_t withTPC = 0; // if prongs have TPC 
-    uint32_t withITSTracker = 0; // if prongs have been ITS tracked
+    uint32_t withTPC = 0;           // if prongs have TPC
+    uint32_t withITSTracker = 0;    // if prongs have been ITS tracked
     uint32_t withITSTrackerTPC = 0; // if prongs have TPC and are ITS tracked
-    uint32_t withITSABTPC = 0; // if prongs have TPC and are ITS afterburned
-    uint32_t withSVertexerOK = 0; // if prongs have acceptable tracking conditions for svertexer
-    
+    uint32_t withITSABTPC = 0;      // if prongs have TPC and are ITS afterburned
+    uint32_t withSVertexerOK = 0;   // if prongs have acceptable tracking conditions for svertexer
+
     bool trackPropertiesOK = false;
     bool topologyOK = false;
     bool k0specsOK = false;
-    for (auto& recv0 : recv0s) {  
+    for (auto& recv0 : recv0s) {
       if (recv0.isFound()) {
         hasBeenFound = true;
       }
@@ -238,21 +238,23 @@ struct findableStudy {
         bitset(withITSABTPC, 1);
 
       // determine if this V0 would go to analysis or not
-      if( recv0.isFound() ){ 
+      if (recv0.isFound()) {
         uint64_t selMap = v0data::computeReconstructionBitmap(recv0, pTrack, nTrack, coll, recv0.yLambda(), recv0.yK0Short(), v0Selections);
-        
+
         // Consider in all cases
         selMap = selMap | (uint64_t(1) << v0data::selConsiderK0Short) | (uint64_t(1) << v0data::selConsiderLambda) | (uint64_t(1) << v0data::selConsiderAntiLambda);
-        
+
         bool validTrackProperties = v0Selections->verifyMask(selMap, maskTrackProperties);
         bool validTopology = v0Selections->verifyMask(selMap, maskTopological);
         bool validK0Short = v0Selections->verifyMask(selMap, maskK0ShortSpecific);
-        if ( validTrackProperties ) trackPropertiesOK = true; // stay true even if last recv0 is false 
-        if ( validTrackProperties && validTopology ) topologyOK = true; // stay true even if last recv0 is false 
-        if ( validTrackProperties && validTopology && validK0Short ) k0specsOK = true; // stay true even if last recv0 is false 
+        if (validTrackProperties)
+          trackPropertiesOK = true; // stay true even if last recv0 is false
+        if (validTrackProperties && validTopology)
+          topologyOK = true; // stay true even if last recv0 is false
+        if (validTrackProperties && validTopology && validK0Short)
+          k0specsOK = true; // stay true even if last recv0 is false
       }
     }
-
 
     histos.fill(HIST("h2dPtVsCentrality_All_Findable"), centrality, ptmc);
     histos.fill(HIST("h2dPtVsCentrality_WithTPC_Findable"), centrality, ptmc, withTPC);
@@ -270,7 +272,7 @@ struct findableStudy {
       histos.fill(HIST("h2dPtVsCentrality_WithSVertexerOK_Found"), centrality, ptmc, withSVertexerOK);
     }
 
-    //Broad analysis Level selections -> last axis is 0 not, 1 yes 
+    // Broad analysis Level selections -> last axis is 0 not, 1 yes
     histos.fill(HIST("h2dPtVsCentrality_Analysis_PassesTrackQuality"), centrality, ptmc);
     histos.fill(HIST("h2dPtVsCentrality_Analysis_PassesTopological"), centrality, ptmc);
     histos.fill(HIST("h2dPtVsCentrality_Analysis_PassesK0Short"), centrality, ptmc);
