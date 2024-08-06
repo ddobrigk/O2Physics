@@ -387,13 +387,6 @@ struct OnTheFlyTracker {
       histos.add("hGenXi", "hGenXi", kTH2F, {axisRadius, axisMomentum});
       histos.add("hRecoXi", "hRecoXi", kTH2F, {axisRadius, axisMomentum});
 
-      histos.add("hGenPiFromXi", "hGenPiFromXi", kTH2F, {axisRadius, axisMomentum});
-      histos.add("hGenPiFromL0", "hGenPiFromL0", kTH2F, {axisRadius, axisMomentum});
-      histos.add("hGenPrFromL0", "hGenPrFromL0", kTH2F, {axisRadius, axisMomentum});
-      histos.add("hRecoPiFromXi", "hRecoPiFromXi", kTH2F, {axisRadius, axisMomentum});
-      histos.add("hRecoPiFromL0", "hRecoPiFromL0", kTH2F, {axisRadius, axisMomentum});
-      histos.add("hRecoPrFromL0", "hRecoPrFromL0", kTH2F, {axisRadius, axisMomentum});
-
       histos.add("hPiFromXiDCAxy", "hPiFromXiDCAxy", kTH1F, {axisDCA});
       histos.add("hPiFromL0DCAxy", "hPiFromL0DCAxy", kTH1F, {axisDCA});
       histos.add("hPrFromL0DCAxy", "hPrFromL0DCAxy", kTH1F, {axisDCA});
@@ -1046,18 +1039,6 @@ struct OnTheFlyTracker {
           histos.fill(HIST("hTrackXatDCA"), trackParametrization.getX());
         }
         if (doXiQA) {
-          if (trackPdg[trackCounter] == -211 && trackIsFromXi[trackCounter]) {
-              histos.fill(HIST("hPiFromXiDCAxy"), dcaXY);
-              histos.fill(HIST("hPiFromXiDCAxyVsPt"), trackParametrization.getPt(), dcaXY);
-          }
-          if (trackPdg[trackCounter] == -211 && trackIsFromL0[trackCounter]) {
-            histos.fill(HIST("hPiFromL0DCAxy"), dcaXY);
-            histos.fill(HIST("hPiFromL0DCAxyVsPt"), trackParametrization.getPt(), dcaXY);
-          }
-          if (trackPdg[trackCounter] == 2212 && trackIsFromL0[trackCounter]) {
-            histos.fill(HIST("hPrFromL0DCAxy"), dcaXY);
-            histos.fill(HIST("hPrFromL0DCAxyVsPt"), trackParametrization.getPt(), dcaXY);
-          }
           if (trackParCov.isUsedInCascading == 1)
             histos.fill(HIST("h2dDCAxyCascade"), trackParametrization.getPt(), dcaXY * 1e+4); // in microns, please
           if (trackParCov.isUsedInCascading == 2)
