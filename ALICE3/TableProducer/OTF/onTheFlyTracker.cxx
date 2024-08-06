@@ -463,7 +463,7 @@ struct OnTheFlyTracker {
     std::vector<double> l0Velocity(3);
     std::vector<double> xiMomentum = {particle.px(), particle.py(), particle.pz()};
     std::vector<double> xiProductionVertex = {particle.vx(), particle.vy(), particle.vz()};
-    double bz = magneticField * (-0.1); // To tesla (sign?!)
+    double bz = magneticField * 0.1; // To tesla
     TRandom3 rand;
     rand.SetSeed(seed);
     double u = rand.Uniform(0, 1);
@@ -620,8 +620,8 @@ struct OnTheFlyTracker {
       if (treatXi) {
         if (mcParticle.pdgCode() == 3312) {
           decayParticle(mcParticle, decayProducts, xiDecayVertex, l0DecayVertex);
-          xiDecayRadius2D = sqrt(xiDecayVertex[0] * xiDecayVertex[0] + xiDecayVertex[1] * xiDecayVertex[1]) * 100;
-          l0DecayRadius2D = sqrt(l0DecayVertex[0] * l0DecayVertex[0] + l0DecayVertex[1] * l0DecayVertex[1]) * 100;
+          xiDecayRadius2D = sqrt(xiDecayVertex[0] * xiDecayVertex[0] + xiDecayVertex[1] * xiDecayVertex[1]);
+          l0DecayRadius2D = sqrt(l0DecayVertex[0] * l0DecayVertex[0] + l0DecayVertex[1] * l0DecayVertex[1]);
         }
       }
 
