@@ -1321,7 +1321,7 @@ struct derivedlambdakzeroanalysis {
 
       if (!v0.has_v0MCCore())
         continue;
-        
+
       auto v0MC = v0.v0MCCore_as<soa::Join<aod::V0MCCores, aod::V0MCCollRefs>>();
 
       // fill AP plot for all V0s
@@ -1366,7 +1366,7 @@ struct derivedlambdakzeroanalysis {
 
   // ______________________________________________________
   // Simulated processing (subscribes to MC information too)
-  void processGenerated(soa::Join<aod::StraMCCollisions,aod::StraMCCollMults> const& mcCollisions, soa::Join<aod::V0MCCores, aod::V0MCCollRefs> const& V0MCCores, soa::Join<aod::CascMCCores, aod::CascMCCollRefs> const& CascMCCores, soa::Join<aod::StraCollisions, aod::StraCents, aod::StraRawCents, aod::StraEvSels, aod::StraCollLabels> const& collisions)
+  void processGenerated(soa::Join<aod::StraMCCollisions, aod::StraMCCollMults> const& mcCollisions, soa::Join<aod::V0MCCores, aod::V0MCCollRefs> const& V0MCCores, soa::Join<aod::CascMCCores, aod::CascMCCollRefs> const& CascMCCores, soa::Join<aod::StraCollisions, aod::StraCents, aod::StraRawCents, aod::StraEvSels, aod::StraCollLabels> const& collisions)
   {
     std::vector<int> listBestCollisionIdx = fillGenEventHist(mcCollisions, collisions);
 
@@ -1387,7 +1387,7 @@ struct derivedlambdakzeroanalysis {
       if (TMath::Abs(ymc) > rapidityCut)
         continue;
 
-      auto mcCollision = v0MC.straMCCollision_as<soa::Join<aod::StraMCCollisions,aod::StraMCCollMults>>();
+      auto mcCollision = v0MC.straMCCollision_as<soa::Join<aod::StraMCCollisions, aod::StraMCCollMults>>();
       float centrality = 100.5f;
       if (listBestCollisionIdx[mcCollision.globalIndex()] > -1) {
         auto collision = collisions.iteratorAt(listBestCollisionIdx[mcCollision.globalIndex()]);
@@ -1422,7 +1422,7 @@ struct derivedlambdakzeroanalysis {
       if (TMath::Abs(ymc) > rapidityCut)
         continue;
 
-      auto mcCollision = cascMC.straMCCollision_as<soa::Join<aod::StraMCCollisions,aod::StraMCCollMults>>();
+      auto mcCollision = cascMC.straMCCollision_as<soa::Join<aod::StraMCCollisions, aod::StraMCCollMults>>();
       float centrality = 100.5f;
       if (listBestCollisionIdx[mcCollision.globalIndex()] > -1) {
         auto collision = collisions.iteratorAt(listBestCollisionIdx[mcCollision.globalIndex()]);
@@ -1447,14 +1447,14 @@ struct derivedlambdakzeroanalysis {
   // ______________________________________________________
   // Simulated processing
   // Fill event information (for event loss estimation) and return the index to the recoed collision associated to a given MC collision.
-  std::vector<int> fillGenEventHist(soa::Join<aod::StraMCCollisions,aod::StraMCCollMults> const& mcCollisions, soa::Join<aod::StraCollisions, aod::StraCents, aod::StraRawCents, aod::StraEvSels, aod::StraCollLabels> const& collisions)
+  std::vector<int> fillGenEventHist(soa::Join<aod::StraMCCollisions, aod::StraMCCollMults> const& mcCollisions, soa::Join<aod::StraCollisions, aod::StraCents, aod::StraRawCents, aod::StraEvSels, aod::StraCollLabels> const& collisions)
   {
     std::vector<int> listBestCollisionIdx(mcCollisions.size());
     for (auto const& mcCollision : mcCollisions) {
       histos.fill(HIST("hGenEvents"), 0 /* all gen. events*/);
 
       auto groupedCollisions = collisions.sliceBy(perMcCollision, mcCollision.globalIndex());
-      // Check if there is at least one of the reconstructed collisions associated to this MC collision 
+      // Check if there is at least one of the reconstructed collisions associated to this MC collision
       // If so, we consider it
       bool atLeastOne = false;
       int biggestNContribs = -1;
@@ -1528,16 +1528,16 @@ struct derivedlambdakzeroanalysis {
         atLeastOne = true;
       }
       listBestCollisionIdx[mcCollision.globalIndex()] = bestCollisionIndex;
-      
+
       histos.fill(HIST("hCentralityVsNcoll_beforeEvSel"), centrality, groupedCollisions.size());
       histos.fill(HIST("hCentralityVsNcoll_afterEvSel"), centrality, nCollisions);
-      
+
       histos.fill(HIST("hCentralityVsMultMC"), centrality, mcCollision.multMCNParticlesEta05());
 
       if (atLeastOne) {
         histos.fill(HIST("hGenEvents"), 1 /* at least 1 rec. event*/);
 
-        histos.fill(HIST("hGenEventCentrality"), centrality);        
+        histos.fill(HIST("hGenEventCentrality"), centrality);
       }
     }
     return listBestCollisionIdx;

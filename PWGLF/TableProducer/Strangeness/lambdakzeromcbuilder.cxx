@@ -102,7 +102,7 @@ struct lambdakzeromcbuilder {
     int pdgCode = 0;
     int pdgCodeMother = 0;
     int pdgCodePositive = 0;
-    int pdgCodeNegative = 0 ;
+    int pdgCodeNegative = 0;
     int mcCollision = -1;
     bool isPhysicalPrimary = false;
     int processPositive = -1;
@@ -173,15 +173,14 @@ struct lambdakzeromcbuilder {
                 thisInfo.xyz[2] = lMCPosTrack.vz();
 
                 // MC pos. and neg. daughters are the same! Looking for replacement...
-                if (lMCPosTrack.globalIndex() == lMCNegTrack.globalIndex())
-                {
+                if (lMCPosTrack.globalIndex() == lMCNegTrack.globalIndex()) {
                   auto const& daughters = lNegMother.daughters_as<aod::McParticles>();
                   for (auto& ldau : daughters) {
                     // check if the candidate originate from a decay
                     // if not, this is not a suitable candidate for one of the decay daughters
                     if (ldau.getProcess() != 4) // see TMCProcess.h
                       continue;
-                    
+
                     if (lMCPosTrack.pdgCode() < 0 && ldau.pdgCode() > 0) { // the positive track needs to be changed
                       thisInfo.pdgCodePositive = ldau.pdgCode();
                       thisInfo.processPositive = ldau.getProcess();
@@ -354,13 +353,13 @@ struct lambdakzeromcbuilder {
           if (mcParticle.has_daughters()) {
             auto const& daughters = mcParticle.daughters_as<aod::McParticles>();
             // if(daughters.size() > 2)
-              // LOGF(info, Form("V0 candidate with %d daughters!", daughters.size()));
+            // LOGF(info, Form("V0 candidate with %d daughters!", daughters.size()));
 
             for (auto& dau : daughters) {
-              if (dau.getProcess() != 4 )
+              if (dau.getProcess() != 4)
                 continue;
 
-              if (dau.pdgCode() > 0) { 
+              if (dau.pdgCode() > 0) {
                 thisInfo.pdgCodePositive = dau.pdgCode();
                 thisInfo.processPositive = dau.getProcess();
                 thisInfo.posP[0] = dau.px();
