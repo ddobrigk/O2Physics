@@ -25,8 +25,8 @@ struct stradautracksextraconverter2 {
   {
     for (auto& values : dauTrackExtras_001) {
       const int valueFindable = 130; // maximize dynamic range of stored value
-      int findableMinusFound = valueFindable-values.tpcClusters();
-      int findableMinusCrossedRows = valueFindable-values.tpcCrossedRows();
+      int findableMinusFound = valueFindable - values.tpcClusters();
+      int findableMinusCrossedRows = valueFindable - values.tpcCrossedRows();
       dauTrackExtras_002(values.itsChi2PerNcl(),
                          values.detectorMap(),
                          values.itsClusterSizes(),
