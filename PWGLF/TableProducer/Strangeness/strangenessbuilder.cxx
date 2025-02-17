@@ -246,6 +246,8 @@ struct StrangenessBuilder {
     Configurable<std::string> geoPath{"geoPath", "GLO/Config/GeometryAligned", "Path of the geometry file"};
   } ccdbConfigurations;
 
+  Configurable<int> mc_findableMode{"mc_findableMode", 0, "0: disabled; 1: add findable-but-not-found to existing V0s from AO2D; 2: reset V0s and generate only findable-but-not-found"};
+
   // V0 building options
   struct : ConfigurableGroup {
     std::string prefix = "v0BuilderOpts";
@@ -259,8 +261,6 @@ struct StrangenessBuilder {
     Configurable<float> dcav0dau{"dcav0dau", 1.0, "DCA V0 Daughters"};
     Configurable<float> v0radius{"v0radius", 0.9, "v0radius"};
     Configurable<float> maxDaughterEta{"maxDaughterEta", 5.0, "Maximum daughter eta (in abs value)"};
-
-    Configurable<int> mc_findableMode{"mc_findableMode", 0, "0: disabled; 1: add findable-but-not-found to existing V0s from AO2D; 2: reset V0s and generate only findable-but-not-found"};
 
     // MC builder options
     Configurable<bool> mc_populateV0MCCoresSymmetric{"mc_populateV0MCCoresSymmetric", false, "populate V0MCCores table for derived data analysis, keep V0MCCores joinable with V0Cores"};
@@ -332,21 +332,24 @@ struct StrangenessBuilder {
   // struct to add abstraction layer between V0s, Cascades and build indices 
   // desirable for adding extra (findable, etc) V0s, Cascades to built list
   struct v0Entry { 
+    int globalId = -1;
     int collisionId = -1; 
     int posTrackId = -1; 
     int negTrackId = -1; 
     int v0Type = 0; 
     int pdgCode = 0; // undefined if not MC - useful for faster finding
-    int particleId = -1 // de-reference the V0 particle if necessary
-  }
+    int particleId = -1; // de-reference the V0 particle if necessary
+    bool isCollinearV0 = false;
+  };
   struct cascadeEntry { 
+    int globalId = -1;
     int collisionId = -1; 
     int v0Id = -1;
     int posTrackId = -1; 
     int negTrackId = -1; 
     int bachTrackId = -1; 
     int cascadeType = 0; // extra addition (0: standard, 1: findable but not found)
-  }
+  };
   std::vector<v0Entry> v0List; 
   std::vector<cascadeEntry> cascadeList; 
   std::vector<std::size_t> sorted_v0; 
@@ -501,9 +504,21 @@ struct StrangenessBuilder {
     straHelper.cascadeselections.maxDaughterEta = cascadeBuilderOpts.maxDaughterEta;
   }
 
-  bool initCCDB(aod::BCsWithTimestamps const& bcs, aod::Collisions const& collisions)
+  // for sorting
+  template <typename T>
+  std::vector<std::size_t> sort_indices(const std::vector<T>& v)
   {
-    auto bc = collisions.size() ? collisions.begin().bc_as<aod::BCsWithTimestamps>() : bcs.begin();
+    std::vector<std::size_t> idx(v.size());
+    std::iota(idx.begin(), idx.end(), 0);
+    std::stable_sort(idx.begin(), idx.end(),
+                     [&v](std::size_t i1, std::size_t i2) { return v[i1].collisionId < v[i2].collisionId; });
+    return idx;
+  }
+
+  template <typename TCollisions>
+  bool initCCDB(aod::BCsWithTimestamps const& bcs, TCollisions const& collisions)
+  {
+    auto bc = collisions.size() ? collisions.begin().template bc_as<aod::BCsWithTimestamps>() : bcs.begin();
     if (!bcs.size()) {
       LOGF(warn, "No BC found, skipping this DF.");
       return false; // signal to skip this DF
@@ -621,7 +636,7 @@ struct StrangenessBuilder {
     std::vector<int> bestCollisionNContribsArray; // stores Ncontribs for biggest coll assoc to mccoll
 
     if(mc_findableMode.value > 0){
-      if constexpr (soa::is_table<mcCollisions>) { 
+      if constexpr (soa::is_table<TMCCollisions>) { 
         // if mcCollisions exist, assemble mcColl -> bestRecoColl map here
         bestCollisionArray.clear(); 
         bestCollisionNContribsArray.clear(); 
@@ -637,23 +652,25 @@ struct StrangenessBuilder {
             }
           }
         } // end collision loop 
-      } // end is_table<mcCollisions>
+      } // end is_table<TMCCollisions>
     } // end findable mode check 
 
     if(mc_findableMode.value < 2){ 
       // simple passthrough: copy existing v0s to build list
       for (auto& v0 : v0s) {
+        currentV0Entry.globalId = v0.globalIndex();
         currentV0Entry.collisionId = v0.collisionId();
         currentV0Entry.posTrackId = v0.posTrackId();
         currentV0Entry.negTrackId = v0.negTrackId();
         currentV0Entry.v0Type = v0.v0Type();
         currentV0Entry.pdgCode = 0;
         currentV0Entry.particleId = -1;
+        currentV0Entry.isCollinearV0 = v0.isCollinearV0();
         v0List.push_back(currentV0Entry);
       }
     }
     // any mode other than 0 will require mcParticles
-    if constexpr (soa::is_table<mcParticles>) { 
+    if constexpr (soa::is_table<TMCCollisions>) { 
       if(mc_findableMode.value > 0){ 
         // for search if existing or not
         int v0ListReconstructedSize = v0List.size(); 
@@ -667,7 +684,7 @@ struct StrangenessBuilder {
           if(!track.has_mcParticle()){
             continue; // skip this, it's trouble
           }
-          auto particle = track.mcParticle_as<aod::McParticles>();
+          auto particle = track.template mcParticle_as<TMCParticles>();
           int originParticleIndex = getOriginatingParticle(particle, dummy, v0BuilderOpts.mc_treatPiToMuDecays);
           if(originParticleIndex<0){
             continue; // skip this, it's trouble (2)
@@ -688,9 +705,9 @@ struct StrangenessBuilder {
 
           // now separate according to particle species
           if(track.sign()<0){ 
-            negativeTrackArray.push_back({track.globalIndex(), originParticleIndex, originParticle.mcCollisionId(), originParticle.pdgCode()});
+            negativeTrackArray.push_back({static_cast<int>(track.globalIndex()), originParticleIndex, originParticle.mcCollisionId(), originParticle.pdgCode()});
           }else{ 
-            positiveTrackArray.push_back({track.globalIndex(), originParticleIndex});
+            positiveTrackArray.push_back({static_cast<int>(track.globalIndex()), originParticleIndex});
           }
         }
 
@@ -705,8 +722,8 @@ struct StrangenessBuilder {
               bool detected = false;
               for(int ii=0; ii<v0ListReconstructedSize; ii++){ 
                 // check if this particular combination already exists in v0List
-                if(v0List[ii].posTrackId == positiveTrackIndex && 
-                    v0List[ii].negTrackId == negativeTrackIndex){ 
+                if(v0List[ii].posTrackId == positiveTrackIndex[0] && 
+                    v0List[ii].negTrackId == negativeTrackIndex[0]){ 
                   detected = true;
                   // override pdg code with something useful for cascade findable math
                   v0List[ii].pdgCode = positiveTrackIndex[3]; 
@@ -715,12 +732,14 @@ struct StrangenessBuilder {
               if(detected == false){ 
                 // collision index: from best-version-of-this-mcCollision
                 // nota bene: this could be negative, caution advised
+                currentV0Entry.globalId = -1;
                 currentV0Entry.collisionId = bestCollisionArray[positiveTrackIndex[2]]; 
                 currentV0Entry.posTrackId = positiveTrackIndex[0]; 
                 currentV0Entry.negTrackId = negativeTrackIndex[0]; 
                 currentV0Entry.v0Type = 8; //mark with bit 3
                 currentV0Entry.pdgCode = positiveTrackIndex[3];
                 currentV0Entry.particleId = positiveTrackIndex[1];
+                currentV0Entry.isCollinearV0 = false;
                 if(v0BuilderOpts.mc_findableDetachedV0.value || currentV0Entry.collisionId >= 0){
                   v0List.push_back(currentV0Entry);
                 }
@@ -729,19 +748,23 @@ struct StrangenessBuilder {
             // findable mode 2: determine type based on V0 table, 
             // with type 8 being reserved to findable-but-not-found
             if(mc_findableMode.value==2){
+              currentV0Entry.globalId = -1;
               currentV0Entry.collisionId = bestCollisionArray[positiveTrackIndex[2]]; 
               currentV0Entry.posTrackId = positiveTrackIndex[0]; 
               currentV0Entry.negTrackId = negativeTrackIndex[0]; 
               currentV0Entry.v0Type = 8;
               currentV0Entry.pdgCode = positiveTrackIndex[3];
               currentV0Entry.particleId = -1;
+              currentV0Entry.isCollinearV0 = false;
               for (auto& v0 : v0s) {
                 if(v0.posTrackId() == positiveTrackIndex[0] && 
                     v0.negTrackId() == negativeTrackIndex[0]){ 
                   // this will override type, but not collision index
                   // N.B.: collision index checks still desirable! 
+                  currentV0Entry.globalId = v0.globalIndex();
                   currentV0Entry.v0Type = v0.v0Type();
                   currentV0Entry.particleId = positiveTrackIndex[1];
+                  currentV0Entry.isCollinearV0 = v0.isCollinearV0();
                 }
               }
               if(v0BuilderOpts.mc_findableDetachedV0.value || currentV0Entry.collisionId >= 0){
@@ -751,23 +774,19 @@ struct StrangenessBuilder {
           }
         } // end positive / negative track loops  
       } // end findableMode > 0 check 
-    } // end soa::is_table<mcParticles>
+    } // end soa::is_table<TMCCollisions>
 
     // determine properly collision-id-sorted index array for later use
     // N.B.: necessary also before cascade part
-    sorted_v0.resize(v0List.size(), 0);
-    std::iota(sorted_v0.begin(), sorted_v0.end(), 0);
-    if(mc_findableMode.value > 0){ 
-      // re-sorting necessary if not relying solely on AO2D-provided V0s
-      std::stable_sort(sorted_v0.begin(), sorted_v0.end(),
-                    [&v](std::size_t i1, std::size_t i2) { return v0List[i1].collisionId < v0List[i2].collisionId; });
-    }
+    sorted_v0.clear(); 
+    sorted_v0 = sort_indices(v0List);
 
     // Cascade part
     if(mc_findableMode.value < 2){ 
       // simple passthrough: copy existing cascades to build list
       for (auto& cascade : cascades) {
         auto const& v0 = cascade.v0();
+        currentCascadeEntry.globalId = cascade.globalIndex();
         currentCascadeEntry.collisionId = cascade.collisionId();
         currentCascadeEntry.v0Id = -1; // fill this in one go later
         currentCascadeEntry.posTrackId = v0.posTrackId();
@@ -779,10 +798,10 @@ struct StrangenessBuilder {
     }
 
     // any mode other than 0 will require mcParticles
-    if constexpr (soa::is_table<mcParticles>) { 
+    if constexpr (soa::is_table<TMCCollisions>) { 
       if(mc_findableMode.value > 0){ 
         // for search if existing or not
-        int cascadeListReconstructedSize = cascadeList.size(); 
+        size_t cascadeListReconstructedSize = cascadeList.size(); 
 
         // determine which tracks are of interest
         std::vector<std::vector<int>> bachelorTrackArray; 
@@ -792,7 +811,7 @@ struct StrangenessBuilder {
           if(!track.has_mcParticle()){
             continue; // skip this, it's trouble
           }
-          auto particle = track.mcParticle_as<aod::McParticles>();
+          auto particle = track.template mcParticle_as<TMCParticles>();
           int originParticleIndex = getOriginatingParticle(particle, dummy, v0BuilderOpts.mc_treatPiToMuDecays);
           if(originParticleIndex<0){
             continue; // skip this, it's trouble (2)
@@ -812,11 +831,11 @@ struct StrangenessBuilder {
           }
 
           // populate list of bachelor tracks to pair
-          bachelorTrackArray.push_back({track.globalIndex(), originParticleIndex, originParticle.mcCollisionId(), originParticle.pdgCode()});
+          bachelorTrackArray.push_back({static_cast<int>(track.globalIndex()), originParticleIndex, originParticle.mcCollisionId(), originParticle.pdgCode()});
         }
         
         // determine which V0s are of interest to pair and do pairing
-        for(int v0i = 0; v0i<v0List.size(); v0i++){ 
+        for(size_t v0i = 0; v0i<v0List.size(); v0i++){ 
           auto v0 = v0List[sorted_v0[v0i]];
 
           if(std::abs(v0.pdgCode) != 3122){ 
@@ -829,10 +848,11 @@ struct StrangenessBuilder {
 
           int v0OriginParticleIndex = -1;
           if (v0Particle.has_mothers()) {
-            auto const& motherList = v0Particle.template mothers_as<aod::McParticles>();
+            auto const& motherList = v0Particle.template mothers_as<TMCParticles>();
             if (motherList.size() == 1) {
-              auto mother = motherList.begin();
-              v0OriginParticleIndex = mother.globalIndex();
+              for (const auto& mother : motherList) {
+                v0OriginParticleIndex = mother.globalIndex();
+              }
             }
           }
           if(v0OriginParticleIndex<0){ 
@@ -840,18 +860,18 @@ struct StrangenessBuilder {
           }
           auto v0OriginParticle = mcParticles.rawIteratorAt(v0OriginParticleIndex);
 
-          if(std::abs(v0OriginParticle.pdgCode)!= 3312 && std::abs(v0OriginParticle.pdgCode) != 3334){ 
+          if(std::abs(v0OriginParticle.pdgCode())!= 3312 && std::abs(v0OriginParticle.pdgCode()) != 3334){ 
             continue; // this V0 does not come from any particle of interest, don't try
           }
           for(auto& bachelorTrackIndex : bachelorTrackArray){ 
-            if(bachelorTrackIndex[1] != v0OriginParticle.pdgCode){
+            if(bachelorTrackIndex[1] != v0OriginParticle.pdgCode()){
               continue;
             }
             // if we are here: v0 origin is 3312 or 3334, bachelor origin matches V0 origin
             // findable mode 1: add non-reconstructed as cascadeType 1
             if(mc_findableMode.value==1){
               bool detected = false;
-              for(int ii=0; ii<cascadeListReconstructedSize; ii++){ 
+              for(size_t ii=0; ii<cascadeListReconstructedSize; ii++){ 
                 // check if this particular combination already exists in cascadeList
                 // caution: use track indices (immutable) but not V0 indices (re-indexing)
                 if(cascadeList[ii].posTrackId == v0.posTrackId && 
@@ -863,10 +883,11 @@ struct StrangenessBuilder {
               if(detected == false){ 
                 // collision index: from best-version-of-this-mcCollision
                 // nota bene: this could be negative, caution advised
+                currentCascadeEntry.globalId = -1;
                 currentCascadeEntry.collisionId = bestCollisionArray[bachelorTrackIndex[2]]; 
                 currentCascadeEntry.v0Id = v0i; // correct information here
-                currentCascadeEntry.posTrackId = v0.posTrackId();
-                currentCascadeEntry.negTrackId = v0.negTrackId();
+                currentCascadeEntry.posTrackId = v0.posTrackId;
+                currentCascadeEntry.negTrackId = v0.negTrackId;
                 currentCascadeEntry.bachTrackId = bachelorTrackIndex[0];
                 currentCascadeEntry.cascadeType = 1; // findable (but not found)
                 cascadeList.push_back(currentCascadeEntry);
@@ -879,20 +900,22 @@ struct StrangenessBuilder {
             // findable mode 2: determine type based on cascade table, 
             // with type 1 being reserved to findable-but-not-found
             if(mc_findableMode.value==2){
-              currentV0Entry.collisionId = bestCollisionArray[positiveTrackIndex[2]]; 
+              currentCascadeEntry.globalId = -1;
+              currentCascadeEntry.collisionId = bestCollisionArray[bachelorTrackIndex[2]]; 
               currentCascadeEntry.v0Id = v0i; // fill this in one go later
-              currentCascadeEntry.posTrackId = v0.posTrackId();
-              currentCascadeEntry.negTrackId = v0.negTrackId();
+              currentCascadeEntry.posTrackId = v0.posTrackId;
+              currentCascadeEntry.negTrackId = v0.negTrackId;
               currentCascadeEntry.bachTrackId = bachelorTrackIndex[0];
               currentCascadeEntry.cascadeType = 1; // findable (but not found)
               for (auto& cascade : cascades) {
-                auto const& v0 = cascade.v0();
-                if(v0.posTrackId() == positiveTrackIndex[0] && 
-                    v0.negTrackId() == negativeTrackIndex[0] && 
+                auto const& v0fromAOD = cascade.v0();
+                if(v0fromAOD.posTrackId() == v0.posTrackId && 
+                    v0fromAOD.negTrackId() == v0.negTrackId && 
                     cascade.bachelorId() == bachelorTrackIndex[0]){ 
                   // this will override type, but not collision index
                   // N.B.: collision index checks still desirable! 
                   currentCascadeEntry.cascadeType = 0;
+                  currentCascadeEntry.globalId = v0fromAOD.globalIndex();
                 }
               }
               if(cascadeBuilderOpts.mc_findableDetachedCascade.value || currentV0Entry.collisionId >= 0){
@@ -906,9 +929,9 @@ struct StrangenessBuilder {
         // correct. We'll have to loop over all V0s and find the appropriate matches
         // ---> but only in mode 1, and only for AO2D-native V0s
         if(mc_findableMode.value==1){
-          for(int casci = 0; casci<cascadeListReconstructedSize){ 
+          for(size_t casci = 0; casci<cascadeListReconstructedSize; casci++){ 
             // loop over v0List to find corresponding v0 index, but do it in sorted way 
-            for(int v0i =0; v0i<v0List.size(); v0i++){ 
+            for(size_t v0i =0; v0i<v0List.size(); v0i++){ 
               auto v0 = v0List[sorted_v0[v0i]];
               if(cascadeList[casci].posTrackId == v0.posTrackId &&
                  cascadeList[casci].negTrackId == v0.negTrackId){
@@ -919,17 +942,12 @@ struct StrangenessBuilder {
         }
 
         // we need to allow for sorted use of cascadeList
-        sorted_cascade.resize(cascadeList.size(), 0);
-        std::iota(sorted_cascade.begin(), sorted_cascade.end(), 0);
-        if(mc_findableMode.value > 0){ 
-          // re-sorting necessary if not relying solely on AO2D-provided V0s
-          std::stable_sort(sorted_cascade.begin(), sorted_cascade.end(),
-                        [&v](std::size_t i1, std::size_t i2) { return cascadeList[i1].collisionId < cascadeList[i2].collisionId; });
-        }
+        sorted_cascade.clear(); 
+        sorted_cascade = sort_indices(cascadeList);
 
         // we should now be done! 
       } // end findable mode check 
-    } // end soa::is_table<mcParticles>
+    } // end soa::is_table<TMCCollisions>
   }
 
   //__________________________________________________
@@ -942,10 +960,10 @@ struct StrangenessBuilder {
     v0Map.resize(v0List.size(), -2); // marks not used
     if (mEnabledTables[kStoredCascCores]) {
       for (auto& cascade : cascadeList) {
-        if (v0Map[cascade.v0Id()] == -2) {
+        if (v0Map[cascade.v0Id] == -2) {
           v0sUsedInCascades++;
         }
-        v0Map[cascade.v0Id()] = -1; // marks used (but isn't the index of a properly built V0, which would be >= 0)
+        v0Map[cascade.v0Id] = -1; // marks used (but isn't the index of a properly built V0, which would be >= 0)
       }
     }
     int trackedCascadeCount = 0;
@@ -966,8 +984,8 @@ struct StrangenessBuilder {
   }
 
   //__________________________________________________
-  template <class TTracks, typename TV0s, typename TMCParticles>
-  void buildV0s(TV0s const& v0s, TMCParticles const& mcParticles)
+  template <typename TCollisions, typename TTracks, typename TV0s, typename TMCParticles>
+  void buildV0s(TCollisions const& collisions, TV0s const& v0s, TTracks const& tracks, TMCParticles const& mcParticles)
   {
     // prepare MC containers (not necessarily used)
     std::vector<mcV0info> mcV0infos; // V0MCCore information
@@ -982,31 +1000,31 @@ struct StrangenessBuilder {
     // Loops over all V0s in the time frame
     histos.fill(HIST("hInputStatistics"), kV0CoresBase, v0s.size());
     for (auto& v0 : v0s) {
-      if (!mEnabledTables[kV0CoresBase] && v0Map[v0.globalIndex()] == -2) {
+      if (!mEnabledTables[kV0CoresBase] && v0Map[v0.globalId] == -2) {
         // this v0 hasn't been used by cascades and we're not generating V0s, so skip it
         v0dataLink(-1, -1);
         continue;
       }
 
       // Get tracks and generate candidate
-      auto const& collision = v0.collision();
-      auto const& posTrack = v0.template posTrack_as<TTracks>();
-      auto const& negTrack = v0.template negTrack_as<TTracks>();
-      if (!straHelper.buildV0Candidate(collision, posTrack, negTrack, v0.isCollinearV0(), mEnabledTables[kV0Covs])) {
+      auto const& collision = collisions.rawIteratorAt(v0.collisionId);
+      auto const& posTrack = tracks.rawIteratorAt(v0.posTrackId);
+      auto const& negTrack = tracks.rawIteratorAt(v0.negTrackId);
+      if (!straHelper.buildV0Candidate(collision, posTrack, negTrack, v0.isCollinearV0, mEnabledTables[kV0Covs])) {
         v0dataLink(-1, -1);
         continue;
       }
-      if (v0Map[v0.globalIndex()] == -1) {
-        v0Map[v0.globalIndex()] = v0sFromCascades.size(); // provide actual valid index in buffer
+      if (v0Map[v0.globalId] == -1) {
+        v0Map[v0.globalId] = v0sFromCascades.size(); // provide actual valid index in buffer
         v0sFromCascades.push_back(straHelper.v0);
       }
       // fill requested cursors only if type is not 0
-      if (v0.v0Type() == 1 || (v0.v0Type() > 1 && v0BuilderOpts.generatePhotonCandidates)) {
+      if (v0.v0Type == 1 || (v0.v0Type > 1 && v0BuilderOpts.generatePhotonCandidates)) {
         nV0s++;
         if (mEnabledTables[kV0Indices]) {
           // for referencing (especially - but not only - when using derived data)
-          v0indices(v0.posTrackId(), v0.negTrackId(),
-                    v0.collisionId(), v0.globalIndex());
+          v0indices(v0.posTrackId, v0.negTrackId,
+                    v0.collisionId, v0.globalId);
           histos.fill(HIST("hTableBuildingStatistics"), kV0Indices);
         }
         if (mEnabledTables[kV0TrackXs]) {
@@ -1024,7 +1042,7 @@ struct StrangenessBuilder {
                   straHelper.v0.negativeDCAxy,
                   TMath::Cos(straHelper.v0.pointingAngle),
                   straHelper.v0.dcaXY,
-                  v0.v0Type());
+                  v0.v0Type);
           v0dataLink(v0cores.lastIndex(), -1);
           histos.fill(HIST("hTableBuildingStatistics"), kV0CoresBase);
         }
@@ -1156,7 +1174,7 @@ struct StrangenessBuilder {
               //      code that is agnostic with respect to the joinability of
               //      V0Cores and V0MCCores (always dereference -> safe)
               if (mEnabledTables[kV0CoreMCLabels]) {
-                v0CoreMCLabels(v0.globalIndex()); // interlink index
+                v0CoreMCLabels(v0.globalId); // interlink index
                 histos.fill(HIST("hTableBuildingStatistics"), kV0CoreMCLabels);
               }
             }
@@ -1385,8 +1403,8 @@ struct StrangenessBuilder {
   }
 
   //__________________________________________________
-  template <class TTracks, typename TCascades, typename TMCParticles>
-  void buildCascades(TCascades const& cascades, TMCParticles const& mcParticles)
+  template <typename TCollisions, typename TTracks, typename TCascades, typename TMCParticles>
+  void buildCascades(TCollisions const& collisions, TCascades const& cascades, TTracks const& tracks, TMCParticles const& mcParticles)
   {
     // prepare MC containers (not necessarily used)
     std::vector<mcCascinfo> mcCascinfos; // V0MCCore information
@@ -1405,19 +1423,18 @@ struct StrangenessBuilder {
     histos.fill(HIST("hInputStatistics"), kStoredCascCores, cascades.size());
     for (auto& cascade : cascades) {
       // Get tracks and generate candidate
-      auto const& collision = cascade.collision();
-      auto const& v0 = cascade.v0();
-      auto const& posTrack = v0.template posTrack_as<TTracks>();
-      auto const& negTrack = v0.template negTrack_as<TTracks>();
-      auto const& bachTrack = cascade.template bachelor_as<TTracks>();
-      if (v0Map[v0.globalIndex()] < 0) {
+      auto const& collision = collisions.rawIteratorAt(cascade.collisionId);
+      auto const& posTrack = tracks.rawIteratorAt(cascade.posTrackId);
+      auto const& negTrack = tracks.rawIteratorAt(cascade.negTrackId);
+      auto const& bachTrack = tracks.rawIteratorAt(cascade.bachTrackId);
+      if (v0Map[cascade.v0Id] < 0) {
         // this V0 hasn't been stored / cached
         cascdataLink(-1);
         interlinks.cascadeToCascCores.push_back(-1);
         continue; // didn't work out, skip
       }
       if (!straHelper.buildCascadeCandidate(collision,
-                                            v0sFromCascades[v0Map[v0.globalIndex()]],
+                                            v0sFromCascades[v0Map[cascade.v0Id]],
                                             posTrack,
                                             negTrack,
                                             bachTrack,
@@ -1432,7 +1449,7 @@ struct StrangenessBuilder {
 
       // generate analysis tables as required
       if (mEnabledTables[kCascIndices]) {
-        cascidx(cascade.globalIndex(),
+        cascidx(cascade.globalId,
                 straHelper.cascade.positiveTrack, straHelper.cascade.negativeTrack,
                 straHelper.cascade.bachelorTrack, straHelper.cascade.collisionId);
         histos.fill(HIST("hTableBuildingStatistics"), kCascIndices);
@@ -1452,7 +1469,7 @@ struct StrangenessBuilder {
 
         // interlink always produced if cascades generated
         cascdataLink(cascdata.lastIndex());
-        interlinks.cascCoreToCascades.push_back(cascade.globalIndex());
+        interlinks.cascCoreToCascades.push_back(cascade.globalId);
         interlinks.cascadeToCascCores.push_back(cascdata.lastIndex());
       }
 
@@ -1695,8 +1712,8 @@ struct StrangenessBuilder {
   }
 
   //__________________________________________________
-  template <class TTracks, typename TCascades, typename TMCParticles>
-  void buildKFCascades(TCascades const& cascades, TMCParticles const& mcParticles)
+  template <typename TCollisions, typename TCascades, typename TTracks, typename TMCParticles>
+  void buildKFCascades(TCollisions const& collisions, TCascades const& cascades, TTracks const& tracks, TMCParticles const& mcParticles)
   {
     if (!mEnabledTables[kStoredKFCascCores]) {
       return; // don't do if no request for cascades in place
@@ -1706,11 +1723,10 @@ struct StrangenessBuilder {
     histos.fill(HIST("hInputStatistics"), kStoredKFCascCores, cascades.size());
     for (auto& cascade : cascades) {
       // Get tracks and generate candidate
-      auto const& collision = cascade.collision();
-      auto const& v0 = cascade.v0();
-      auto const& posTrack = v0.template posTrack_as<TTracks>();
-      auto const& negTrack = v0.template negTrack_as<TTracks>();
-      auto const& bachTrack = cascade.template bachelor_as<TTracks>();
+      auto const& collision = collisions.rawIteratorAt(cascade.collisionId);
+      auto const& posTrack = tracks.rawIteratorAt(cascade.posTrackId);
+      auto const& negTrack = tracks.rawIteratorAt(cascade.negTrackId);
+      auto const& bachTrack = tracks.rawIteratorAt(cascade.bachTrackId);
       if (!straHelper.buildCascadeCandidateWithKF(collision,
                                                   posTrack,
                                                   negTrack,
@@ -1730,7 +1746,7 @@ struct StrangenessBuilder {
 
       // generate analysis tables as required
       if (mEnabledTables[kKFCascIndices]) {
-        kfcascidx(cascade.globalIndex(),
+        kfcascidx(cascade.globalId,
                   straHelper.cascade.positiveTrack, straHelper.cascade.negativeTrack,
                   straHelper.cascade.bachelorTrack, straHelper.cascade.collisionId);
         histos.fill(HIST("hTableBuildingStatistics"), kKFCascIndices);
@@ -1754,7 +1770,7 @@ struct StrangenessBuilder {
 
         // interlink always produced if cascades generated
         kfcascdataLink(kfcascdata.lastIndex());
-        interlinks.kfCascCoreToCascades.push_back(cascade.globalIndex());
+        interlinks.kfCascCoreToCascades.push_back(cascade.globalId);
         interlinks.cascadeToKFCascCores.push_back(kfcascdata.lastIndex());
       }
       if (mEnabledTables[kKFCascCovs]) {
@@ -1928,11 +1944,11 @@ struct StrangenessBuilder {
     markV0sUsedInCascades(v0List, cascadeList, trackedCascades);
 
     // build V0s
-    buildV0s<TTracks>(v0s, mcParticles);
+    buildV0s(collisions, v0List, tracks, mcParticles);
 
     // build cascades
-    buildCascades<TTracks>(cascades, mcParticles);
-    buildKFCascades<TTracks>(cascades, mcParticles);
+    buildCascades(collisions, cascadeList, tracks, mcParticles);
+    buildKFCascades(collisions, cascadeList, tracks, mcParticles);
 
     // build tracked cascades only if subscription is Run 3 like (doesn't exist in Run 2)
     if constexpr (soa::is_table<TTrackedCascades>) {
