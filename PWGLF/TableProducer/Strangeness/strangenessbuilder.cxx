@@ -331,6 +331,12 @@ struct StrangenessBuilder {
   //*+-+*+-+*+-+*+-+*+-+*+-+*+-+*+-+*+-+*+-+*
   // struct to add abstraction layer between V0s, Cascades and build indices 
   // desirable for adding extra (findable, etc) V0s, Cascades to built list
+  struct trackEntry { 
+    int globalId = -1;
+    int originId = -1;
+    int mcCollisionId = -1;
+    int pdgCode = -1;
+  };
   struct v0Entry { 
     int globalId = -1;
     int collisionId = -1; 
@@ -629,6 +635,7 @@ struct StrangenessBuilder {
     sorted_v0.clear(); 
     sorted_cascade.clear();
     
+    trackEntry currentTrackEntry;
     v0Entry currentV0Entry; 
     cascadeEntry currentCascadeEntry; 
 
@@ -676,8 +683,8 @@ struct StrangenessBuilder {
         int v0ListReconstructedSize = v0List.size(); 
 
         // find extra candidates, step 1: find subset of tracks that interest
-        std::vector<std::vector<int>> positiveTrackArray; 
-        std::vector<std::vector<int>> negativeTrackArray; 
+        std::vector<trackEntry> positiveTrackArray; 
+        std::vector<trackEntry> negativeTrackArray; 
         // vector elements: track index, origin index [, mc collision id, pdg code]
         int dummy = -1; // unnecessary in this path
         for (auto& track : tracks) {
@@ -703,18 +710,23 @@ struct StrangenessBuilder {
             continue; // skip this, it's uninteresting
           }
 
+          currentTrackEntry.globalId = static_cast<int>(track.globalIndex());
+          currentTrackEntry.originId = originParticleIndex;
+          currentTrackEntry.mcCollisionId = originParticle.mcCollisionId(); 
+          currentTrackEntry.pdgCode = originParticle.pdgCode();
+
           // now separate according to particle species
           if(track.sign()<0){ 
-            negativeTrackArray.push_back({static_cast<int>(track.globalIndex()), originParticleIndex, originParticle.mcCollisionId(), originParticle.pdgCode()});
+            negativeTrackArray.push_back(currentTrackEntry);
           }else{ 
-            positiveTrackArray.push_back({static_cast<int>(track.globalIndex()), originParticleIndex});
+            positiveTrackArray.push_back(currentTrackEntry);
           }
         }
 
         // Nested loop only with valuable tracks
         for (auto& positiveTrackIndex : positiveTrackArray) {
           for (auto& negativeTrackIndex : negativeTrackArray) {
-            if(positiveTrackIndex[1] != negativeTrackIndex[1]){ 
+            if(positiveTrackIndex.originId != negativeTrackIndex.originId){ 
               continue; // not the same originating particle
             }
             // findable mode 1: add non-reconstructed as v0Type 8
@@ -722,23 +734,23 @@ struct StrangenessBuilder {
               bool detected = false;
               for(int ii=0; ii<v0ListReconstructedSize; ii++){ 
                 // check if this particular combination already exists in v0List
-                if(v0List[ii].posTrackId == positiveTrackIndex[0] && 
-                    v0List[ii].negTrackId == negativeTrackIndex[0]){ 
+                if(v0List[ii].posTrackId == positiveTrackIndex.globalId && 
+                    v0List[ii].negTrackId == negativeTrackIndex.globalId){ 
                   detected = true;
                   // override pdg code with something useful for cascade findable math
-                  v0List[ii].pdgCode = positiveTrackIndex[3]; 
+                  v0List[ii].pdgCode = positiveTrackIndex.pdgCode; 
                 }
               }
               if(detected == false){ 
                 // collision index: from best-version-of-this-mcCollision
                 // nota bene: this could be negative, caution advised
                 currentV0Entry.globalId = -1;
-                currentV0Entry.collisionId = bestCollisionArray[positiveTrackIndex[2]]; 
-                currentV0Entry.posTrackId = positiveTrackIndex[0]; 
-                currentV0Entry.negTrackId = negativeTrackIndex[0]; 
+                currentV0Entry.collisionId = bestCollisionArray[positiveTrackIndex.mcCollisionId]; 
+                currentV0Entry.posTrackId = positiveTrackIndex.globalId; 
+                currentV0Entry.negTrackId = negativeTrackIndex.globalId; 
                 currentV0Entry.v0Type = 8; //mark with bit 3
-                currentV0Entry.pdgCode = positiveTrackIndex[3];
-                currentV0Entry.particleId = positiveTrackIndex[1];
+                currentV0Entry.pdgCode = positiveTrackIndex.pdgCode;
+                currentV0Entry.particleId = positiveTrackIndex.originId;
                 currentV0Entry.isCollinearV0 = false;
                 if(v0BuilderOpts.mc_findableDetachedV0.value || currentV0Entry.collisionId >= 0){
                   v0List.push_back(currentV0Entry);
@@ -749,21 +761,20 @@ struct StrangenessBuilder {
             // with type 8 being reserved to findable-but-not-found
             if(mc_findableMode.value==2){
               currentV0Entry.globalId = -1;
-              currentV0Entry.collisionId = bestCollisionArray[positiveTrackIndex[2]]; 
-              currentV0Entry.posTrackId = positiveTrackIndex[0]; 
-              currentV0Entry.negTrackId = negativeTrackIndex[0]; 
+              currentV0Entry.collisionId = bestCollisionArray[positiveTrackIndex.mcCollisionId]; 
+              currentV0Entry.posTrackId = positiveTrackIndex.globalId; 
+              currentV0Entry.negTrackId = negativeTrackIndex.globalId; 
               currentV0Entry.v0Type = 8;
-              currentV0Entry.pdgCode = positiveTrackIndex[3];
-              currentV0Entry.particleId = -1;
+              currentV0Entry.pdgCode = positiveTrackIndex.pdgCode;
+              currentV0Entry.particleId = positiveTrackIndex.originId;
               currentV0Entry.isCollinearV0 = false;
               for (auto& v0 : v0s) {
-                if(v0.posTrackId() == positiveTrackIndex[0] && 
-                    v0.negTrackId() == negativeTrackIndex[0]){ 
+                if(v0.posTrackId() == positiveTrackIndex.globalId && 
+                    v0.negTrackId() == negativeTrackIndex.globalId){ 
                   // this will override type, but not collision index
                   // N.B.: collision index checks still desirable! 
                   currentV0Entry.globalId = v0.globalIndex();
                   currentV0Entry.v0Type = v0.v0Type();
-                  currentV0Entry.particleId = positiveTrackIndex[1];
                   currentV0Entry.isCollinearV0 = v0.isCollinearV0();
                 }
               }
@@ -804,7 +815,7 @@ struct StrangenessBuilder {
         size_t cascadeListReconstructedSize = cascadeList.size(); 
 
         // determine which tracks are of interest
-        std::vector<std::vector<int>> bachelorTrackArray; 
+        std::vector<trackEntry> bachelorTrackArray; 
         // vector elements: track index, origin index, mc collision id, pdg code]
         int dummy = -1; // unnecessary in this path
         for (auto& track : tracks) {
@@ -830,8 +841,13 @@ struct StrangenessBuilder {
             continue; // skip this, it's uninteresting
           }
 
+          currentTrackEntry.globalId = static_cast<int>(track.globalIndex());
+          currentTrackEntry.originId = originParticleIndex;
+          currentTrackEntry.mcCollisionId = originParticle.mcCollisionId();
+          currentTrackEntry.pdgCode = originParticle.pdgCode();
+
           // populate list of bachelor tracks to pair
-          bachelorTrackArray.push_back({static_cast<int>(track.globalIndex()), originParticleIndex, originParticle.mcCollisionId(), originParticle.pdgCode()});
+          bachelorTrackArray.push_back(currentTrackEntry);
         }
         
         // determine which V0s are of interest to pair and do pairing
@@ -864,7 +880,7 @@ struct StrangenessBuilder {
             continue; // this V0 does not come from any particle of interest, don't try
           }
           for(auto& bachelorTrackIndex : bachelorTrackArray){ 
-            if(bachelorTrackIndex[1] != v0OriginParticle.pdgCode()){
+            if(bachelorTrackIndex.originId != v0OriginParticle.pdgCode()){
               continue;
             }
             // if we are here: v0 origin is 3312 or 3334, bachelor origin matches V0 origin
@@ -876,7 +892,7 @@ struct StrangenessBuilder {
                 // caution: use track indices (immutable) but not V0 indices (re-indexing)
                 if(cascadeList[ii].posTrackId == v0.posTrackId && 
                     cascadeList[ii].negTrackId == v0.negTrackId &&
-                    cascadeList[ii].bachTrackId == bachelorTrackIndex[0]){ 
+                    cascadeList[ii].bachTrackId == bachelorTrackIndex.globalId){ 
                   detected = true;
                 }
               }
@@ -884,11 +900,11 @@ struct StrangenessBuilder {
                 // collision index: from best-version-of-this-mcCollision
                 // nota bene: this could be negative, caution advised
                 currentCascadeEntry.globalId = -1;
-                currentCascadeEntry.collisionId = bestCollisionArray[bachelorTrackIndex[2]]; 
+                currentCascadeEntry.collisionId = bestCollisionArray[bachelorTrackIndex.mcCollisionId]; 
                 currentCascadeEntry.v0Id = v0i; // correct information here
                 currentCascadeEntry.posTrackId = v0.posTrackId;
                 currentCascadeEntry.negTrackId = v0.negTrackId;
-                currentCascadeEntry.bachTrackId = bachelorTrackIndex[0];
+                currentCascadeEntry.bachTrackId = bachelorTrackIndex.globalId;
                 currentCascadeEntry.cascadeType = 1; // findable (but not found)
                 cascadeList.push_back(currentCascadeEntry);
                 if(cascadeBuilderOpts.mc_findableDetachedCascade.value || currentV0Entry.collisionId >= 0){
@@ -901,17 +917,17 @@ struct StrangenessBuilder {
             // with type 1 being reserved to findable-but-not-found
             if(mc_findableMode.value==2){
               currentCascadeEntry.globalId = -1;
-              currentCascadeEntry.collisionId = bestCollisionArray[bachelorTrackIndex[2]]; 
+              currentCascadeEntry.collisionId = bestCollisionArray[bachelorTrackIndex.mcCollisionId]; 
               currentCascadeEntry.v0Id = v0i; // fill this in one go later
               currentCascadeEntry.posTrackId = v0.posTrackId;
               currentCascadeEntry.negTrackId = v0.negTrackId;
-              currentCascadeEntry.bachTrackId = bachelorTrackIndex[0];
+              currentCascadeEntry.bachTrackId = bachelorTrackIndex.globalId;
               currentCascadeEntry.cascadeType = 1; // findable (but not found)
               for (auto& cascade : cascades) {
                 auto const& v0fromAOD = cascade.v0();
                 if(v0fromAOD.posTrackId() == v0.posTrackId && 
                     v0fromAOD.negTrackId() == v0.negTrackId && 
-                    cascade.bachelorId() == bachelorTrackIndex[0]){ 
+                    cascade.bachelorId() == bachelorTrackIndex.globalId){ 
                   // this will override type, but not collision index
                   // N.B.: collision index checks still desirable! 
                   currentCascadeEntry.cascadeType = 0;
