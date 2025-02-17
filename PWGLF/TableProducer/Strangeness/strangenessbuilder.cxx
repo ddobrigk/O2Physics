@@ -226,10 +226,11 @@ struct StrangenessBuilder {
 
   //__________________________________________________
   // cascade interlinks
-  Produces<aod::CascToTraRefs> cascToTraRefs; // cascades -> tracked
-  Produces<aod::CascToKFRefs> cascToKFRefs;   // cascades -> KF
-  Produces<aod::TraToCascRefs> traToCascRefs; // tracked -> cascades
-  Produces<aod::KFToCascRefs> kfToCascRefs;   // KF -> cascades
+  // FIXME: commented out until strangederivedbuilder adjusted accordingly
+  // Produces<aod::CascToTraRefs> cascToTraRefs; // cascades -> tracked
+  // Produces<aod::CascToKFRefs> cascToKFRefs;   // cascades -> KF
+  // Produces<aod::TraToCascRefs> traToCascRefs; // tracked -> cascades
+  // Produces<aod::KFToCascRefs> kfToCascRefs;   // KF -> cascades
 
   Configurable<LabeledArray<int>> enabledTables{"enabledTables",
                                                 {defaultParameters[0], nTables, nParameters, tableNames, parameterNames},
@@ -586,25 +587,25 @@ struct StrangenessBuilder {
   {
     if (mEnabledTables[kCascToKFRefs]) {
       for (auto& cascCore : interlinks.cascCoreToCascades) {
-        cascToKFRefs(interlinks.cascadeToKFCascCores[cascCore]);
+        //cascToKFRefs(interlinks.cascadeToKFCascCores[cascCore]);
         histos.fill(HIST("hTableBuildingStatistics"), kCascToKFRefs);
       }
     }
     if (mEnabledTables[kCascToTraRefs]) {
       for (auto& cascCore : interlinks.cascCoreToCascades) {
-        cascToTraRefs(interlinks.cascadeToTraCascCores[cascCore]);
+        //cascToTraRefs(interlinks.cascadeToTraCascCores[cascCore]);
         histos.fill(HIST("hTableBuildingStatistics"), kCascToTraRefs);
       }
     }
     if (mEnabledTables[kKFToCascRefs]) {
       for (auto& kfCascCore : interlinks.kfCascCoreToCascades) {
-        kfToCascRefs(interlinks.cascadeToCascCores[kfCascCore]);
+        //kfToCascRefs(interlinks.cascadeToCascCores[kfCascCore]);
         histos.fill(HIST("hTableBuildingStatistics"), kKFToCascRefs);
       }
     }
     if (mEnabledTables[kTraToCascRefs]) {
       for (auto& traCascCore : interlinks.traCascCoreToCascades) {
-        traToCascRefs(interlinks.cascadeToCascCores[traCascCore]);
+        //traToCascRefs(interlinks.cascadeToCascCores[traCascCore]);
         histos.fill(HIST("hTableBuildingStatistics"), kTraToCascRefs);
       }
     }
