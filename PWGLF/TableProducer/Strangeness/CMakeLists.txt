@@ -103,7 +103,7 @@ o2physics_add_dpl_workflow(st-coll-ids
 
 o2physics_add_dpl_workflow(strangederivedbuilder
     SOURCES strangederivedbuilder.cxx
-    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore O2::DetectorsBase
+    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
     COMPONENT_NAME Analysis)
 
 o2physics_add_dpl_workflow(strangenessbuilder
