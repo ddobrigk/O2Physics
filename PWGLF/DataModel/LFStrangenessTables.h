@@ -619,41 +619,22 @@ DECLARE_SOA_COLUMN(GeneratedLambda, generatedLambda, std::vector<uint32_t>);    
 DECLARE_SOA_COLUMN(GeneratedAntiLambda, generatedAntiLambda, std::vector<uint32_t>); //! AntiLambda binned generated data
 
 //______________________________________________________
-// EXPRESSION COLUMNS
-DECLARE_SOA_EXPRESSION_COLUMN(Px, px, //! V0 px
-                              float, 1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg);
-DECLARE_SOA_EXPRESSION_COLUMN(Py, py, //! V0 py
-                              float, 1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg);
-DECLARE_SOA_EXPRESSION_COLUMN(Pz, pz, //! V0 pz
-                              float, 1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg);
-DECLARE_SOA_EXPRESSION_COLUMN(Pt, pt, float, //! Transverse momentum in GeV/c
-                              nsqrt((1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) *
-                                      (1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) +
-                                    (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) * (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg)));
-DECLARE_SOA_EXPRESSION_COLUMN(P, p, float, //! Total momentum in GeV/c
-                              nsqrt((1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) *
-                                      (1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) +
-                                    (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) * (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) +
-                                    (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg) * (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg)));
-DECLARE_SOA_EXPRESSION_COLUMN(Phi, phi, float, //! Phi in the range [0, 2pi)
-                              o2::constants::math::PI + natan2(-1.0f * (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg), -1.0f * (1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg)));
-DECLARE_SOA_EXPRESSION_COLUMN(Eta, eta, float, //! Pseudorapidity, conditionally defined to avoid FPEs
-                              ifnode((nsqrt((1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) * (1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) +
-                                            (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) * (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) +
-                                            (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg) * (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg)) -
-                                      (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg)) < static_cast<float>(1e-7),
-                                     ifnode((1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg) < 0.f, -100.f, 100.f),
-                                     0.5f * nlog((nsqrt((1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) * (1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) +
-                                                        (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) * (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) +
-                                                        (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg) * (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg)) +
-                                                  (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg)) /
-                                                 (nsqrt((1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) * (1.f * aod::v0data::pxpos + 1.f * aod::v0data::pxneg) +
-                                                        (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) * (1.f * aod::v0data::pypos + 1.f * aod::v0data::pyneg) +
-                                                        (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg) * (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg)) -
-                                                  (1.f * aod::v0data::pzpos + 1.f * aod::v0data::pzneg)))));
-
-//______________________________________________________
 // DYNAMIC COLUMNS
+DECLARE_SOA_DYNAMIC_COLUMN(Px, px, //! V0 px
+                           [](float pxpos, float pxneg) -> float { return pxpos + pxneg; });
+DECLARE_SOA_DYNAMIC_COLUMN(Py, py, //! V0 py
+                           [](float pypos, float pyneg) -> float { return pypos + pyneg; });
+DECLARE_SOA_DYNAMIC_COLUMN(Pz, pz, //! V0 pz
+                           [](float pzpos, float pzneg) -> float { return pzpos + pzneg; });
+DECLARE_SOA_EXPRESSION_COLUMN(Pt, pt, //! Transverse momentum in GeV/c
+                              [](float pxpos, float pypos, float pxneg, float pyneg) -> float { return RecoDecay::sqrtSumOfSquares(pxpos + pxneg, pypos + pyneg); });
+DECLARE_SOA_EXPRESSION_COLUMN(P, p, //! Total momentum in GeV/c
+                              [](float pxpos, float pypos, float pzpos, float pxneg, float pyneg, float pzneg) -> float { return RecoDecay::sqrtSumOfSquares(pxpos + pxneg, pypos + pyneg, pzpos + pzneg); });
+DECLARE_SOA_EXPRESSION_COLUMN(Phi, phi, //! Phi in the range [0, 2pi)
+                              [](float pxpos, float pypos, float pxneg, float pyneg) -> float { return RecoDecay::phi(pxpos + pxneg, pypos + pyneg); });
+DECLARE_SOA_EXPRESSION_COLUMN(Eta, eta, //! Pseudorapidity
+                              [](float pxpos, float pypos, float pzpos, float pxneg, float pyneg, float pzneg) -> float { return RecoDecay::eta(std::array{pxpos + pxneg, pypos + pyneg, pzpos + pzneg}); });
+
 // Account for rigidity in case of hypertriton
 DECLARE_SOA_DYNAMIC_COLUMN(PtHypertriton, ptHypertriton, //! V0 pT
                            [](float pxpos, float pypos, float pxneg, float pyneg) -> float { return RecoDecay::sqrtSumOfSquares(2.0f * pxpos + pxneg, 2.0f * pypos + pyneg); });
@@ -811,56 +792,56 @@ DECLARE_SOA_TABLE_STAGED(V0Extras, "V0EXTRA", //! optional table to refer to cus
 DECLARE_SOA_TABLE(V0TrackXs, "AOD", "V0TRACKX", //! track X positions at minima when using AO2Ds
                   v0data::PosX, v0data::NegX, o2::soa::Marker<1>);
 
-DECLARE_SOA_TABLE_STAGED(V0CoresBase, "V0CORE", //! core information about decay, viable with AO2Ds or derived
-                         o2::soa::Index<>,
-                         v0data::X, v0data::Y, v0data::Z,
-                         v0data::PxPos, v0data::PyPos, v0data::PzPos,
-                         v0data::PxNeg, v0data::PyNeg, v0data::PzNeg,
-                         v0data::DCAV0Daughters, v0data::DCAPosToPV, v0data::DCANegToPV,
-                         v0data::V0CosPA, v0data::DCAV0ToPV, v0data::V0Type,
+DECLARE_SOA_TABLE(V0Cores, "AOD", "V0CORE", //! core information about decay, viable with AO2Ds or derived
+                  o2::soa::Index<>,
+                  v0data::X, v0data::Y, v0data::Z,
+                  v0data::PxPos, v0data::PyPos, v0data::PzPos,
+                  v0data::PxNeg, v0data::PyNeg, v0data::PzNeg,
+                  v0data::DCAV0Daughters, v0data::DCAPosToPV, v0data::DCANegToPV,
+                  v0data::V0CosPA, v0data::DCAV0ToPV, v0data::V0Type,
 
-                         // Dynamic columns
-                         v0data::PtHypertriton<v0data::PxPos, v0data::PyPos, v0data::PxNeg, v0data::PyNeg>,
-                         v0data::PtAntiHypertriton<v0data::PxPos, v0data::PyPos, v0data::PxNeg, v0data::PyNeg>,
-                         v0data::V0Radius<v0data::X, v0data::Y>,
-                         v0data::DistOverTotMom<v0data::X, v0data::Y, v0data::Z, v0data::Px, v0data::Py, v0data::Pz>,
-                         v0data::Alpha<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::QtArm<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::PsiPair<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::PFracPos<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::PFracNeg<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>, // 24
+                  // Dynamic columns
+                  v0data::Px<v0data::PxPos, v0data::PxNeg>,
+                  v0data::Py<v0data::PyPos, v0data::PyNeg>,
+                  v0data::Pz<v0data::PzPos, v0data::PzNeg>,
+                  v0data::Pt<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg>,
+                  v0data::P<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg, v0data::PzPos, v0data::PzNeg>,
+                  v0data::Phi<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg>,
+                  v0data::Eta<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg, v0data::PzPos, v0data::PzNeg>,
 
-                         // Invariant masses
-                         v0data::MLambda<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::MAntiLambda<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::MK0Short<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::MGamma<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::MHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::MAntiHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::M<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::PtHypertriton<v0data::PxPos, v0data::PyPos, v0data::PxNeg, v0data::PyNeg>,
+                  v0data::PtAntiHypertriton<v0data::PxPos, v0data::PyPos, v0data::PxNeg, v0data::PyNeg>,
+                  v0data::V0Radius<v0data::X, v0data::Y>,
+                  v0data::DistOverTotMom<v0data::X, v0data::Y, v0data::Z, v0data::Px, v0data::Py, v0data::Pz>,
+                  v0data::Alpha<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::QtArm<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::PsiPair<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::PFracPos<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::PFracNeg<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>, // 24
 
-                         // Longitudinal
-                         v0data::YK0Short<v0data::Px, v0data::Py, v0data::Pz>,
-                         v0data::YLambda<v0data::Px, v0data::Py, v0data::Pz>,
-                         v0data::YHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::YAntiHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::Rapidity<v0data::Px, v0data::Py, v0data::Pz>,
-                         v0data::NegativePt<v0data::PxNeg, v0data::PyNeg>,
-                         v0data::PositivePt<v0data::PxPos, v0data::PyPos>,
-                         v0data::NegativeEta<v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
-                         v0data::NegativePhi<v0data::PxNeg, v0data::PyNeg>,
-                         v0data::PositiveEta<v0data::PxPos, v0data::PyPos, v0data::PzPos>,
-                         v0data::PositivePhi<v0data::PxPos, v0data::PyPos>,
-                         v0data::IsStandardV0<v0data::V0Type>,
-                         v0data::IsPhotonTPConly<v0data::V0Type>);
+                  // Invariant masses
+                  v0data::MLambda<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::MAntiLambda<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::MK0Short<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::MGamma<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::MHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::MAntiHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::M<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
 
-// extended table with expression columns that can be used as arguments of dynamic columns
-DECLARE_SOA_EXTENDED_TABLE_USER(V0Cores, V0CoresBase, "V0COREEXT",                                                    //!
-                                v0data::Px, v0data::Py, v0data::Pz, v0data::Pt, v0data::P, v0data::Phi, v0data::Eta); // the table name has here to be the one with EXT which is not nice and under study
-
-// // extended table with expression columns that can be used as arguments of dynamic columns
-// DECLARE_SOA_EXTENDED_TABLE_USER(StoredV0Cores, StoredV0CoresBase, "V0COREEXT",                                                            //!
-//                                 v0data::Px, v0data::Py, v0data::Pz, v0data::Pt, v0data::P, v0data::Phi, v0data::Eta, o2::soa::Marker<2>); // the table name has here to be the one with EXT which is not nice and under study
+                  // Longitudinal
+                  v0data::YK0Short<v0data::Px, v0data::Py, v0data::Pz>,
+                  v0data::YLambda<v0data::Px, v0data::Py, v0data::Pz>,
+                  v0data::YHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::YAntiHypertriton<v0data::PxPos, v0data::PyPos, v0data::PzPos, v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::Rapidity<v0data::Px, v0data::Py, v0data::Pz>,
+                  v0data::NegativePt<v0data::PxNeg, v0data::PyNeg>,
+                  v0data::PositivePt<v0data::PxPos, v0data::PyPos>,
+                  v0data::NegativeEta<v0data::PxNeg, v0data::PyNeg, v0data::PzNeg>,
+                  v0data::NegativePhi<v0data::PxNeg, v0data::PyNeg>,
+                  v0data::PositiveEta<v0data::PxPos, v0data::PyPos, v0data::PzPos>,
+                  v0data::PositivePhi<v0data::PxPos, v0data::PyPos>,
+                  v0data::IsStandardV0<v0data::V0Type>,
+                  v0data::IsPhotonTPConly<v0data::V0Type>);
 
 DECLARE_SOA_TABLE(V0TraPosAtDCAs, "AOD", "V0TRAPOSATDCAs", //! positions of tracks at their DCA for debug
                   v0data::XPosAtDCA, v0data::YPosAtDCA, v0data::ZPosAtDCA,
@@ -886,7 +867,7 @@ DECLARE_SOA_TABLE(V0fCIndices, "AOD", "V0FCINDEX", //! index table when using AO
 DECLARE_SOA_TABLE(V0fCTrackXs, "AOD", "V0FCTRACKX", //! track X positions at minima when using AO2Ds
                   v0data::PosX, v0data::NegX, o2::soa::Marker<2>);
 
-DECLARE_SOA_TABLE_FULL(StoredV0fCCores, "V0fCCores", "AOD", "V0FCCORE", //! core information about decay, exclusive to V0s used in cascades but not passing in V0 selections - multiple viable getters skipped since use is protected to cascades only
+DECLARE_SOA_TABLE_FULL(V0fCCores, "V0fCCores", "AOD", "V0FCCORE", //! core information about decay, exclusive to V0s used in cascades but not passing in V0 selections - multiple viable getters skipped since use is protected to cascades only
                        v0data::X, v0data::Y, v0data::Z,
                        v0data::PxPos, v0data::PyPos, v0data::PzPos,
                        v0data::PxNeg, v0data::PyNeg, v0data::PzNeg,
@@ -894,6 +875,14 @@ DECLARE_SOA_TABLE_FULL(StoredV0fCCores, "V0fCCores", "AOD", "V0FCCORE", //! core
                        v0data::V0CosPA, v0data::DCAV0ToPV, v0data::V0Type,
 
                        // Dynamic columns
+                       v0data::Px<v0data::PxPos, v0data::PxNeg>,
+                       v0data::Py<v0data::PyPos, v0data::PyNeg>,
+                       v0data::Pz<v0data::PzPos, v0data::PzNeg>,
+                       v0data::Pt<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg>,
+                       v0data::P<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg, v0data::PzPos, v0data::PzNeg>,
+                       v0data::Phi<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg>,
+                       v0data::Eta<v0data::PxPos, v0data::PxNeg, v0data::PyPos, v0data::PyNeg, v0data::PzPos, v0data::PzNeg>,
+                       
                        v0data::PtHypertriton<v0data::PxPos, v0data::PyPos, v0data::PxNeg, v0data::PyNeg>,
                        v0data::PtAntiHypertriton<v0data::PxPos, v0data::PyPos, v0data::PxNeg, v0data::PyNeg>,
                        v0data::V0Radius<v0data::X, v0data::Y>,
@@ -928,10 +917,6 @@ DECLARE_SOA_TABLE_FULL(StoredV0fCCores, "V0fCCores", "AOD", "V0FCCORE", //! core
                        v0data::IsStandardV0<v0data::V0Type>,
                        v0data::IsPhotonTPConly<v0data::V0Type>,
                        o2::soa::Marker<2>);
-
-// extended table with expression columns that can be used as arguments of dynamic columns
-DECLARE_SOA_EXTENDED_TABLE_USER(V0fCCores, StoredV0fCCores, "V0FCCOREEXT",                                            //!
-                                v0data::Px, v0data::Py, v0data::Pz, v0data::Pt, v0data::P, v0data::Phi, v0data::Eta); // the table name has here to be the one with EXT which is not nice and under study
 
 DECLARE_SOA_TABLE_FULL(V0fCCovs, "V0fCCovs", "AOD", "V0FCCOVS", //! V0 covariance matrices
                        v0data::PositionCovMat, v0data::MomentumCovMat, o2::soa::Marker<2>);
