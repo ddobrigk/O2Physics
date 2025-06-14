@@ -100,6 +100,7 @@ struct MultiplicityTable {
   Produces<aod::PVMultZeqs> tablePVZeqs;        // 12
   Produces<aod::MultMCExtras> tableExtraMc;     // 13
   Produces<aod::Mult2MCExtras> tableExtraMult2MCExtras;
+  Produces<aod::MultHepMCHIs> multHepMCHIs;     // Not accounted for, produced using custom process function to avoid dependencies
   Produces<aod::MFTMults> mftMults;             // Not accounted for, produced using custom process function to avoid dependencies
   Produces<aod::MultsGlobal> multsGlobal;       // Not accounted for, produced based on process function processGlobalTrackingCounters
 
@@ -721,6 +722,18 @@ struct MultiplicityTable {
     tableExtraMc(multFT0A, multFT0C, multFV0A, multFDDA, multFDDC, multBarrelEta05, multBarrelEta08, multBarrelEta10, mcCollision.posZ());
   }
 
+  void processHepMCHeavyIons(aod::HepMCHeavyIons const& hepmchis)
+  {
+    for (auto const& hepmchi : hepmchis) {
+      multHepMCHIs(hepmchi.mcCollisionId(),
+                   hepmchi.ncollHard(), 
+                   hepmchi.npartProj(), 
+                   hepmchi.npartTarg(), 
+                   hepmchi.ncoll(), 
+                   hepmchi.impactParameter());
+    }
+  }
+
   void processMC2Mults(soa::Join<aod::McCollisionLabels, aod::Collisions>::iterator const& collision)
   {
     tableExtraMult2MCExtras(collision.mcCollisionId()); // interlink
@@ -807,6 +820,7 @@ struct MultiplicityTable {
   PROCESS_SWITCH(MultiplicityTable, processRun3, "Produce Run 3 multiplicity tables. Autoset if both processRun2 and processRun3 are enabled", true);
   PROCESS_SWITCH(MultiplicityTable, processGlobalTrackingCounters, "Produce Run 3 global counters", false);
   PROCESS_SWITCH(MultiplicityTable, processMC, "Produce MC multiplicity tables", false);
+  PROCESS_SWITCH(MultiplicityTable, processHepMCHeavyIons, "Produce MultHepMCHIs tables", false);
   PROCESS_SWITCH(MultiplicityTable, processMC2Mults, "Produce MC -> Mult map", false);
   PROCESS_SWITCH(MultiplicityTable, processRun3MFT, "Produce MFT mult tables", false);
 };
