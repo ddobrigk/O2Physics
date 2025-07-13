@@ -139,3 +139,23 @@ o2physics_add_dpl_workflow(v0assoqa
     SOURCES v0assoqa.cxx
     PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore O2::DCAFitter KFParticle::KFParticle O2Physics::TPCDriftManager
     COMPONENT_NAME Analysis)
+
+o2physics_add_dpl_workflow(groupingbenchmarkpreslice
+    SOURCES groupingBenchmarkPreslice.cxx
+    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
+    COMPONENT_NAME Analysis)
+
+o2physics_add_dpl_workflow(groupingbenchmarkpresliceunsorted
+    SOURCES groupingBenchmarkPresliceUnsorted.cxx
+    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
+    COMPONENT_NAME Analysis)
+
+o2physics_add_dpl_workflow(groupingbenchmarkiterator
+    SOURCES groupingBenchmarkIterator.cxx
+    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
+    COMPONENT_NAME Analysis)
+
+o2physics_add_dpl_workflow(groupingbenchmarkcustom
+    SOURCES groupingBenchmarkCustom.cxx
+    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
+    COMPONENT_NAME Analysis)
