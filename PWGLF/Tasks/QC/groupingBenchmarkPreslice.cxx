@@ -58,7 +58,7 @@ struct groupingBenchmarkPreslice {
     for (const auto& coll : collisions) {
       const uint64_t collIdx = coll.globalIndex();
       auto V0s = fullV0s.sliceBy(perCollision, collIdx);
-      histos.template get<TH1>(HIST("hV0sPerEvent"))->Fill(V0s.size());
+      histos.get<TH1>(HIST("hV0sPerEvent"))->Fill(V0s.size());
     }
 
     // mark end of DF

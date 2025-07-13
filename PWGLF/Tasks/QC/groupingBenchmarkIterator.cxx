@@ -59,7 +59,7 @@ struct groupingBenchmarkIterator {
     // this is an iterator-based process function. It will be called Ncollisions times. 
     // In order to manually capture time, we use preceding and succeeding process functions. 
     // These should be kept on to make sure the timing is correctly printed. 
-    histos.template get<TH1>(HIST("hV0sPerEvent"))->Fill(V0s.size());
+    histos.get<TH1>(HIST("hV0sPerEvent"))->Fill(V0s.size());
   }
 
   void processStopClock(aod::StraCollisions const& collisions, soa::Join<aod::V0CollRefs, aod::V0Cores> const& fullV0s)
