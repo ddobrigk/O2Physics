@@ -515,7 +515,7 @@ class MultModule
       for (const auto& track : tracks) {
         // check whether the track is a tracklet
         if (track.trackType() == o2::aod::track::Run2Tracklet) {
-          if(internalOpts.mEnabledTables[kTrackletMults]) {
+          if (internalOpts.mEnabledTables[kTrackletMults]) {
             mults.multTracklets++;
           }
           if (internalOpts.mEnabledTables[kPVMults]) {
@@ -532,7 +532,7 @@ class MultModule
         }
         // check whether the track is a global ITS-TPC track
         if (track.tpcNClsFindable() > 0) {
-          if(internalOpts.mEnabledTables[kTPCMults]) {
+          if (internalOpts.mEnabledTables[kTPCMults]) {
             mults.multTPC++;
           }
         }
