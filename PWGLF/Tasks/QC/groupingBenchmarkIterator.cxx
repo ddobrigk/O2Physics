@@ -48,13 +48,18 @@ struct groupingBenchmarkIterator {
   void init(InitContext const&)
   {
     histos.add("hV0sPerEvent", "hV0sPerEvent", framework::kTH1D, {{100,-0.5f,99.5f}});
+    histos.add("hCollisionsVsDF", "hCollisionsVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});\
+    histos.add("hV0sVsDF", "hV0sVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});
+    histos.add("hTimeVsDF", "hTimesVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});
   }
+
+  int atDF = 0; // index of DF
 
   void processStartClock(aod::StraCollisions const&){ 
     start = std::chrono::high_resolution_clock::now();
   }
 
-  void processGrouping(aod::StraCollision const& collision, soa::Join<aod::V0CollRefs, aod::V0Cores> const& V0s)
+  void processGrouping(aod::StraCollision const& collision, aod::V0CollRefs const& V0s)
   {
     // this is an iterator-based process function. It will be called Ncollisions times. 
     // In order to manually capture time, we use preceding and succeeding process functions. 
@@ -62,12 +67,16 @@ struct groupingBenchmarkIterator {
     histos.get<TH1>(HIST("hV0sPerEvent"))->Fill(V0s.size());
   }
 
-  void processStopClock(aod::StraCollisions const& collisions, soa::Join<aod::V0CollRefs, aod::V0Cores> const& fullV0s)
+  void processStopClock(aod::StraCollisions const& collisions, aod::V0CollRefs const& fullV0s)
   {
     // mark end of DF
     end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     LOGF(info, "[DF processed] N. Collisions: %i, N. V0s: %i, Processing time (s): %lf", collisions.size(), fullV0s.size(), elapsed.count());
+    histos.template get<TH1>(HIST("hCollisionsVsDF"))->Fill(atDF, collisions.size());
+    histos.template get<TH1>(HIST("hV0sVsDF"))->Fill(atDF, fullV0s.size());
+    histos.template get<TH1>(HIST("hTimeVsDF"))->Fill(atDF, elapsed.count());
+    atDF++;
   }
 
   PROCESS_SWITCH(groupingBenchmarkIterator, processStartClock, "start clock", true);

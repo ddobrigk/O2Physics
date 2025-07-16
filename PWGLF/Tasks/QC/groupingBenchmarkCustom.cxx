@@ -43,15 +43,24 @@ struct groupingBenchmarkCustom {
   HistogramRegistry histos{"Histos", {}, OutputObjHandlingPolicy::AnalysisObject};
 
   // slice command 
-  Preslice<soa::Join<aod::V0CollRefs, aod::V0Cores>> perCollision = o2::aod::v0data::straCollisionId;
+  Preslice<aod::V0CollRefs> perCollision = o2::aod::v0data::straCollisionId;
 
   void init(InitContext const&)
   {
     histos.add("hV0sPerEvent", "hV0sPerEvent", framework::kTH1D, {{100,-0.5f,99.5f}});
+    histos.add("hCollisionsVsDF", "hCollisionsVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});\
+    histos.add("hV0sVsDF", "hV0sVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});
+    histos.add("hTimeVsDF", "hTimesVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});
   }
 
-  void process(aod::StraCollisions const& collisions, soa::Join<aod::V0CollRefs, aod::V0Cores> const& fullV0s)
+  int atDF = 0; // index of DF
+
+  void process(aod::StraCollisions const& collisions, aod::V0CollRefs const& fullV0s)
   {
+    if(collisions.size()==0){
+      return; //skip empty
+    }
+
     // mark beginning of DF
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -72,6 +81,10 @@ struct groupingBenchmarkCustom {
     std::chrono::duration<double> elapsed = end - start;
 
     LOGF(info, "[DF processed] N. Collisions: %i, N. V0s: %i, Processing time (s): %lf", collisions.size(), fullV0s.size(), elapsed.count());
+    histos.template get<TH1>(HIST("hCollisionsVsDF"))->Fill(atDF, collisions.size());
+    histos.template get<TH1>(HIST("hV0sVsDF"))->Fill(atDF, fullV0s.size());
+    histos.template get<TH1>(HIST("hTimeVsDF"))->Fill(atDF, elapsed.count());
+    atDF++;
   }
 };
 

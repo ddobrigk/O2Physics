@@ -43,29 +43,55 @@ struct groupingBenchmarkPreslice {
   HistogramRegistry histos{"Histos", {}, OutputObjHandlingPolicy::AnalysisObject};
 
   // slice command 
-  Preslice<soa::Join<aod::V0CollRefs, aod::V0Cores>> perCollision = o2::aod::v0data::straCollisionId;
+  Preslice<aod::V0CollRefs> perCollision = o2::aod::v0data::straCollisionId;
+
+  std::chrono::high_resolution_clock::time_point previous{};
 
   void init(InitContext const&)
   {
     histos.add("hV0sPerEvent", "hV0sPerEvent", framework::kTH1D, {{100,-0.5f,99.5f}});
+    histos.add("hCollisionsVsDF", "hCollisionsVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});\
+    histos.add("hV0sVsDF", "hV0sVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});
+    histos.add("hTimeVsDF", "hTimesVsDF", framework::kTH1D, {{100,-0.5f,99.5f}});
   }
 
-  void process(aod::StraCollisions const& collisions, soa::Join<aod::V0CollRefs, aod::V0Cores> const& fullV0s)
-  {
-    // mark beginning of DF
-    auto start = std::chrono::high_resolution_clock::now();
+  int atDF = 0; // index of DF
+  int atFilledDF = 0; // index of DF
+  int collisionsThisDF; 
+  int V0sThisDF; 
+  double timeThisDF;
 
+  void process(aod::StraCollisions const& collisions, aod::V0CollRefs const& fullV0s)
+  {
+    // first DF capture
+    if(atDF==0){
+      previous = std::chrono::high_resolution_clock::now();
+    }
+
+    // process if not empty
     for (const auto& coll : collisions) {
       const uint64_t collIdx = coll.globalIndex();
       auto V0s = fullV0s.sliceBy(perCollision, collIdx);
-      histos.get<TH1>(HIST("hV0sPerEvent"))->Fill(V0s.size());
     }
 
-    // mark end of DF
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
+    // take the values in case this is a non-empty DF
+    if(collisions.size()>0){ 
+      collisionsThisDF = collisions.size(); 
+      V0sThisDF = fullV0s.size();
+    }
 
-    LOGF(info, "[DF processed] N. Collisions: %i, N. V0s: %i, Processing time (s): %lf", collisions.size(), fullV0s.size(), elapsed.count());
+    // this is the empty DF that succeeds a filled DF, mark time now
+    if(atDF>0&&collisions.size()==0){
+      auto end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> elapsed = end - previous;
+      LOGF(info, "[DF processed, indexed %i, filled %i] N. Collisions: %i, N. V0s: %i, Processing time (s): %lf", atDF, atFilledDF, collisionsThisDF, V0sThisDF, elapsed.count());
+      histos.template get<TH1>(HIST("hCollisionsVsDF"))->Fill(atFilledDF, collisionsThisDF);
+      histos.template get<TH1>(HIST("hV0sVsDF"))->Fill(atFilledDF, V0sThisDF);
+      histos.template get<TH1>(HIST("hTimeVsDF"))->Fill(atFilledDF, elapsed.count());
+      previous = std::chrono::high_resolution_clock::now();
+      atFilledDF++;
+    }
+    atDF++;
   }
 };
 
