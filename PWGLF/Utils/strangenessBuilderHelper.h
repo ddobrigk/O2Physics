@@ -266,6 +266,12 @@ class strangenessBuilderHelper
   //_______________________________________________________________________
   // standard build V0 function. Populates ::v0 object
   // ::v0 will be initialized to defaults if build fails
+  // Note: TTrackParametrization can be one out of TrackPar
+  // and TrackParCov, but note that TrackParCov implies 
+  // the update of covariance matrices with multiple scattering
+  // contributions and will thus require more CPU. It is
+  // thus advisable to not use TrackParCovs unless covariance
+  // matrices are strictly necessary in order to save CPU. 
   template <bool useSelections = true, typename TTrack, typename TTrackParametrization>
   bool buildV0Candidate(int collisionIndex,
                         float pvX, float pvY, float pvZ,
@@ -312,6 +318,10 @@ class strangenessBuilderHelper
     // do DCA to PV on copies instead of originals
     auto positiveTrackParamCopy = positiveTrackParam;
     auto negativeTrackParamCopy = negativeTrackParam;
+
+    //_____________________________________________________________________________________________________________
+    // core processing: different for TrackPar vs TrackParCov 
+    
 
     o2::base::Propagator::Instance()->propagateToDCABxByBz({pvX, pvY, pvZ}, positiveTrackParamCopy, 2.f, fitter.getMatCorrType(), &dcaInfo);
     v0.positiveDCAxy = dcaInfo[0];
